@@ -1,0 +1,9 @@
+node_modules/
+dist/
+test-results/
+playwright-report/
+coverage/
+artifacts/captures/
+artifacts/videos/
+*.log
+.DS_Store
