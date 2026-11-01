@@ -12,36 +12,44 @@ import {
   Scene,
   Vector3,
 } from 'three';
+import { CameraRig } from './CameraRig';
+import { CollisionWorld } from './CollisionWorld';
+import { InputController } from './InputController';
 import { Loop } from './Loop';
+import { PlayerController } from './PlayerController';
 import { Renderer } from './Renderer';
+import { resolveCarry } from './escalators';
 import { createDiagnostics, type Diagnostics } from '../test/diagnostics';
 import { installHooks } from '../test/hooks';
 import { createRng } from '../test/rng';
-
-const EYE_HEIGHT = 1.65;
+import type { EscalatorSpec } from '../world/layout';
 
 const STATE_POSITIONS: Record<string, [number, number, number]> = {
-  street: [-30, 0.0 + EYE_HEIGHT, 12],
-  pavilion: [-30, 0.6 + EYE_HEIGHT, 4],
-  concourse: [-40, -10 + EYE_HEIGHT, 0],
-  platform: [0, -16.75 + EYE_HEIGHT, 0],
-  boarding: [0, -16.75 + EYE_HEIGHT, 2],
-  complete: [0, -16.75 + EYE_HEIGHT, 6],
+  street: [-30, 0, 12],
+  pavilion: [-30, 0.6, 4],
+  concourse: [-40, -10, 0],
+  platform: [0, -16.75, 0],
+  boarding: [0, -16.75, 2],
+  complete: [0, -16.75, 6],
 };
 
 /**
  * Owns the scene, world systems, and frame orchestration.
- * Task 1 ships a placeholder world; the station lands in later tasks.
+ * The placeholder world is replaced by the station in later tasks.
  */
 export class Game {
   private readonly renderer: Renderer;
   private readonly scene = new Scene();
   private readonly camera: PerspectiveCamera;
+  private readonly cameraRig: CameraRig;
+  private readonly world = new CollisionWorld();
+  private readonly player = new PlayerController(new Vector3(...STATE_POSITIONS.street));
+  private readonly input: InputController;
   private readonly loop: Loop;
   private readonly diagnostics = createDiagnostics();
+  private readonly escalators: EscalatorSpec[] = [];
 
   private rng = createRng(42);
-  private readonly playerPosition = new Vector3(...STATE_POSITIONS.street);
   private stage = 'street';
   private reducedMotion = false;
   private debugUiHidden = false;
@@ -55,13 +63,15 @@ export class Game {
       0.1,
       400,
     );
-    this.camera.position.copy(this.playerPosition);
+    this.cameraRig = new CameraRig(this.camera);
+    this.cameraRig.apply(this.player);
 
     this.scene.background = new Color(0x0a1218);
     this.scene.fog = new Fog(0x0a1218, 80, 320);
     this.buildPlaceholder();
 
     this.loop = new Loop(this.update, this.render);
+    this.input = new InputController(canvas, (paused) => this.loop.setPaused(paused));
   }
 
   start(): void {
@@ -91,14 +101,15 @@ export class Game {
   setState(name: string): { state: string } {
     const position = STATE_POSITIONS[name];
     if (!position) throw new Error(`Unknown state: ${name}`);
-    this.playerPosition.set(position[0], position[1], position[2]);
-    this.camera.position.copy(this.playerPosition);
+    this.player.teleport(position[0], position[1], position[2]);
+    this.cameraRig.apply(this.player);
     this.stage = name;
     return { state: name };
   }
 
   setPausedForScreenshot(paused: boolean): void {
-    this.loop.setPaused(paused);
+    if (paused) this.loop.setPaused(true);
+    else this.input.setPaused(false);
   }
 
   setReducedMotion(enabled: boolean): void {
@@ -110,6 +121,8 @@ export class Game {
   }
 
   private buildPlaceholder(): void {
+    this.world.addBox(new Vector3(-95, -1, -15), new Vector3(95, 0, 15));
+
     const ground = new Mesh(
       new PlaneGeometry(190, 30),
       new MeshStandardMaterial({ color: 0x1c262b, roughness: 0.9, metalness: 0.05 }),
@@ -128,10 +141,15 @@ export class Game {
     });
     const columnGeometry = new BoxGeometry(0.9, 6.75, 0.9);
     for (let i = 0; i < 8; i += 1) {
+      const x = -45 + i * 13 + (this.rng() - 0.5) * 0.02;
+      const z = i % 2 === 0 ? 3.2 : -3.2;
       const column = new Mesh(columnGeometry, columnMaterial);
-      const jitter = (this.rng() - 0.5) * 0.02;
-      column.position.set(-45 + i * 13 + jitter, 3.375, i % 2 === 0 ? 3.2 : -3.2);
+      column.position.set(x, 3.375, z);
       this.scene.add(column);
+      this.world.addBox(
+        new Vector3(x - 0.45, 0, z - 0.45),
+        new Vector3(x + 0.45, 6.75, z + 0.45),
+      );
     }
 
     this.scene.add(new HemisphereLight(0xbfd6ff, 0x3a3833, 1.1));
@@ -142,8 +160,14 @@ export class Game {
 
   private readonly update = (dt: number): void => {
     this.elapsed += dt;
-    this.camera.position.copy(this.playerPosition);
-    this.camera.rotation.set(0, 0, 0);
+
+    const input = this.input.pressed();
+    const look = this.input.takeLook(dt);
+    this.player.look(look.x, look.y);
+
+    const carry = resolveCarry(this.player.position, this.escalators);
+    this.player.update(dt, input, this.world, carry);
+    this.cameraRig.apply(this.player);
   };
 
   private readonly render = (): void => {
@@ -158,10 +182,10 @@ export class Game {
     diagnostics.frame += 1;
     diagnostics.elapsed = this.elapsed;
     diagnostics.stage = this.stage;
-    diagnostics.player.position.x = this.playerPosition.x;
-    diagnostics.player.position.y = this.playerPosition.y;
-    diagnostics.player.position.z = this.playerPosition.z;
-    diagnostics.player.speed = 0;
+    diagnostics.player.position.x = this.player.position.x;
+    diagnostics.player.position.y = this.player.position.y;
+    diagnostics.player.position.z = this.player.position.z;
+    diagnostics.player.speed = this.player.speed;
     diagnostics.renderer.calls = info.render.calls;
     diagnostics.renderer.triangles = info.render.triangles;
     diagnostics.renderer.geometries = info.memory.geometries;
@@ -174,7 +198,6 @@ export class Game {
     window.__THREE_GAME_DIAGNOSTICS__ = diagnostics;
   }
 
-  /** Kept for later tasks; referenced now so strict unused checks stay meaningful. */
   get isReducedMotion(): boolean {
     return this.reducedMotion;
   }

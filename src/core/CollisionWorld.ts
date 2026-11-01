@@ -94,7 +94,7 @@ export class CollisionWorld {
         grounded = true;
       }
     } else {
-      const ceiling = this.ceilingHeightAt(p.x, p.z, radius);
+      const ceiling = this.ceilingHeightAt(p.x, p.z, radius, p.y);
       if (ceiling !== null && p.y + height > ceiling) {
         p.y = ceiling - height;
       }
@@ -147,9 +147,10 @@ export class CollisionWorld {
     }
   }
 
-  private ceilingHeightAt(x: number, z: number, radius: number): number | null {
+  private ceilingHeightAt(x: number, z: number, radius: number, feetY: number): number | null {
     let best: number | null = null;
     for (const box of this.boxes) {
+      if (box.min.y < feetY + EPSILON) continue;
       if (x + radius <= box.min.x || x - radius >= box.max.x) continue;
       if (z + radius <= box.min.z || z - radius >= box.max.z) continue;
       if (best === null || box.min.y < best) best = box.min.y;
