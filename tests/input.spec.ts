@@ -15,20 +15,22 @@ async function position(page: import('@playwright/test').Page): Promise<{ x: num
 }
 
 test('WASD walks the player forward', async ({ page }) => {
+  await page.setViewportSize({ width: 960, height: 540 });
   await page.goto('/');
   await page.locator('canvas').click();
   const before = await position(page);
 
   await page.keyboard.down('KeyW');
-  await page.waitForTimeout(800);
+  await page.waitForTimeout(2000);
   await page.keyboard.up('KeyW');
-  await page.waitForTimeout(100);
+  await page.waitForTimeout(200);
 
   const after = await position(page);
-  expect(after.z).toBeLessThan(before.z - 0.5);
+  expect(after.z).toBeLessThan(before.z - 1);
 });
 
 test('Escape pauses simulation without accumulating movement', async ({ page }) => {
+  await page.setViewportSize({ width: 960, height: 540 });
   await page.goto('/');
   await page.locator('canvas').click();
   await page.keyboard.down('KeyW');

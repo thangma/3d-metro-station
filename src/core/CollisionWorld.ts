@@ -16,6 +16,7 @@ interface RampSpec {
   z1: number;
   y0: number;
   y1: number;
+  axis: 'x' | 'z';
   slope: number;
 }
 
@@ -43,14 +44,48 @@ export class CollisionWorld {
     });
   }
 
-  addRamp(x0: number, x1: number, z0: number, z1: number, y0: number, y1: number): void {
-    const run = Math.max(Math.abs(x1 - x0), EPSILON);
-    this.ramps.push({ x0, x1, z0, z1, y0, y1, slope: Math.abs(y1 - y0) / run });
+  /**
+   * Sloped walkable surface. The slope rises from y0 at the low edge to y1 at
+   * the high edge; `axis` picks whether it climbs along X or Z (default: the
+   * longer horizontal span).
+   */
+  addRamp(
+    x0: number,
+    x1: number,
+    z0: number,
+    z1: number,
+    y0: number,
+    y1: number,
+    axis?: 'x' | 'z',
+  ): void {
+    const resolved =
+      axis ?? (Math.abs(x1 - x0) >= Math.abs(z1 - z0) ? 'x' : 'z');
+    const run = Math.max(
+      resolved === 'x' ? Math.abs(x1 - x0) : Math.abs(z1 - z0),
+      EPSILON,
+    );
+    this.ramps.push({
+      x0,
+      x1,
+      z0,
+      z1,
+      y0,
+      y1,
+      axis: resolved,
+      slope: Math.abs(y1 - y0) / run,
+    });
   }
 
-  groundHeightAt(x: number, z: number): number | null {
+  /**
+   * Highest walkable surface at (x, z) that is not above `feetY` + step-up.
+   * Pass feetY when a roof or slab sits overhead, so it is not mistaken for
+   * the floor.
+   */
+  groundHeightAt(x: number, z: number, feetY = Number.POSITIVE_INFINITY): number | null {
+    const ceiling = feetY + STEP_UP;
     let best: number | null = null;
     for (const box of this.boxes) {
+      if (box.max.y > ceiling) continue;
       if (x >= box.min.x && x <= box.max.x && z >= box.min.z && z <= box.max.z) {
         if (best === null || box.max.y > best) best = box.max.y;
       }
@@ -58,9 +93,13 @@ export class CollisionWorld {
     for (const ramp of this.ramps) {
       if (ramp.slope > SLOPE_LIMIT) continue;
       if (x < Math.min(ramp.x0, ramp.x1) || x > Math.max(ramp.x0, ramp.x1)) continue;
-      if (z < ramp.z0 || z > ramp.z1) continue;
-      const t = (x - ramp.x0) / (ramp.x1 - ramp.x0);
+      if (z < Math.min(ramp.z0, ramp.z1) || z > Math.max(ramp.z0, ramp.z1)) continue;
+      const from = ramp.axis === 'x' ? ramp.x0 : ramp.z0;
+      const to = ramp.axis === 'x' ? ramp.x1 : ramp.z1;
+      const value = ramp.axis === 'x' ? x : z;
+      const t = (value - from) / (to - from);
       const height = ramp.y0 + (ramp.y1 - ramp.y0) * t;
+      if (height > ceiling) continue;
       if (best === null || height > best) best = height;
     }
     return best;
@@ -85,11 +124,10 @@ export class CollisionWorld {
     let grounded = false;
 
     if (delta.y <= 0) {
-      const support = this.groundHeightAt(p.x, p.z);
-      if (support !== null && p.y <= support + EPSILON && support - p.y <= STEP_UP) {
-        p.y = support;
-        grounded = true;
-      } else if (support !== null && p.y <= support) {
+      // Reference the pre-move height so a long fall still finds the floor it
+      // passed, while a ledge above the feet is not treated as ground.
+      const support = this.groundHeightAt(p.x, p.z, position.y);
+      if (support !== null && p.y <= support + STEP_UP) {
         p.y = support;
         grounded = true;
       }
@@ -159,7 +197,7 @@ export class CollisionWorld {
   }
 
   private isSupported(p: Vector3, radius: number): boolean {
-    const support = this.groundHeightAt(p.x, p.z);
+    const support = this.groundHeightAt(p.x, p.z, p.y);
     if (support !== null && Math.abs(p.y - support) <= EPSILON * 10) return true;
     for (const box of this.boxes) {
       if (p.x + radius <= box.min.x || p.x - radius >= box.max.x) continue;

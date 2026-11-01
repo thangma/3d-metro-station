@@ -1,14 +1,9 @@
 import {
-  BoxGeometry,
   Color,
   DirectionalLight,
   Fog,
-  GridHelper,
   HemisphereLight,
-  Mesh,
-  MeshStandardMaterial,
   PerspectiveCamera,
-  PlaneGeometry,
   Scene,
   Vector3,
 } from 'three';
@@ -24,11 +19,14 @@ import { Hud } from '../ui/Hud';
 import { createDiagnostics, type Diagnostics } from '../test/diagnostics';
 import { installHooks } from '../test/hooks';
 import { createRng } from '../test/rng';
-import type { EscalatorSpec } from '../world/layout';
+import { PAVILION_X, PAVILION_Y, type EscalatorSpec } from '../world/layout';
+import { buildSite } from '../world/site';
+import { buildPavilion } from '../world/pavilion';
+import { createMaterials, type MaterialLibrary } from '../world/kit/materials';
 
 const STATE_POSITIONS: Record<string, [number, number, number]> = {
-  street: [-30, 0, 12],
-  pavilion: [-30, 0.6, 4],
+  street: [PAVILION_X, 0, 17.5],
+  pavilion: [PAVILION_X, PAVILION_Y, 12.6],
   concourse: [-40, -10, 0],
   platform: [0, -16.75, 0],
   boarding: [0, -16.75, 2],
@@ -45,6 +43,7 @@ export class Game {
   private readonly camera: PerspectiveCamera;
   private readonly cameraRig: CameraRig;
   private readonly world = new CollisionWorld();
+  private readonly materials: MaterialLibrary;
   private readonly player = new PlayerController(new Vector3(...STATE_POSITIONS.street));
   private readonly input: InputController;
   private readonly loop: Loop;
@@ -71,9 +70,10 @@ export class Game {
     this.cameraRig = new CameraRig(this.camera);
     this.cameraRig.apply(this.player);
 
-    this.scene.background = new Color(0x0a1218);
-    this.scene.fog = new Fog(0x0a1218, 80, 320);
-    this.buildPlaceholder();
+    this.scene.background = new Color(0x9fb6c6);
+    this.scene.fog = new Fog(0xb9c9d2, 70, 340);
+    this.materials = createMaterials(this.renderer.three);
+    this.buildWorld();
 
     this.loop = new Loop(this.update, this.render);
     this.input = new InputController(canvas, (paused) => this.loop.setPaused(paused));
@@ -103,6 +103,11 @@ export class Game {
     this.rng = createRng(value);
   }
 
+  /** Seeded randomness shared by every system that needs it. */
+  nextRandom(): number {
+    return this.rng();
+  }
+
   setState(name: string): { state: string } {
     const position = STATE_POSITIONS[name];
     if (!position) throw new Error(`Unknown state: ${name}`);
@@ -125,40 +130,14 @@ export class Game {
     this.debugUiHidden = hidden;
   }
 
-  private buildPlaceholder(): void {
-    this.world.addBox(new Vector3(-95, -1, -15), new Vector3(95, 0, 15));
+  private buildWorld(): void {
+    buildSite(this.scene, this.world, this.materials);
+    const south = buildPavilion(this.scene, this.world, this.materials, PAVILION_X, 1);
+    this.escalators.push(...south.escalators);
+    buildPavilion(this.scene, this.world, this.materials, PAVILION_X, -1);
 
-    const ground = new Mesh(
-      new PlaneGeometry(190, 30),
-      new MeshStandardMaterial({ color: 0x1c262b, roughness: 0.9, metalness: 0.05 }),
-    );
-    ground.rotation.x = -Math.PI / 2;
-    this.scene.add(ground);
-
-    const grid = new GridHelper(190, 76, 0x2f4a52, 0x1b3036);
-    grid.position.y = 0.01;
-    this.scene.add(grid);
-
-    const columnMaterial = new MeshStandardMaterial({
-      color: 0x8b9599,
-      roughness: 0.55,
-      metalness: 0.25,
-    });
-    const columnGeometry = new BoxGeometry(0.9, 6.75, 0.9);
-    for (let i = 0; i < 8; i += 1) {
-      const x = -45 + i * 13 + (this.rng() - 0.5) * 0.02;
-      const z = i % 2 === 0 ? 3.2 : -3.2;
-      const column = new Mesh(columnGeometry, columnMaterial);
-      column.position.set(x, 3.375, z);
-      this.scene.add(column);
-      this.world.addBox(
-        new Vector3(x - 0.45, 0, z - 0.45),
-        new Vector3(x + 0.45, 6.75, z + 0.45),
-      );
-    }
-
-    this.scene.add(new HemisphereLight(0xbfd6ff, 0x3a3833, 1.1));
-    const sun = new DirectionalLight(0xfff2dd, 2.2);
+    this.scene.add(new HemisphereLight(0xdfeaf5, 0x4a4640, 1.5));
+    const sun = new DirectionalLight(0xfff2dd, 2.6);
     sun.position.set(40, 60, 20);
     this.scene.add(sun);
   }
