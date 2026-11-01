@@ -23,7 +23,7 @@ export const VOID_HALF_WIDTH = 6.3;
 export const TRACK_WIDTH = 3.67;
 export const SIDE_ZONE = 3.9;
 
-export const ESCALATOR_RUN_CONCOURSE = 26;
+export const ESCALATOR_RUN_CONCOURSE = 20;
 export const ESCALATOR_RUN_PLATFORM = 13;
 
 export const CAR_COUNT = 5;

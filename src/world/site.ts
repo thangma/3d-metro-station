@@ -23,6 +23,7 @@ import {
   ESCALATOR_X_OFFSET,
   SHAFT_X0,
   SHAFT_X1,
+  STAIR_BOTTOM_Z,
   STAIR_HALF_WIDTH,
   STAIR_TOP_Z,
   STAIR_X_OFFSET,
@@ -79,19 +80,20 @@ function buildRoof(group: Group, world: CollisionWorld, materials: MaterialLibra
   addSlab(-BOX_HALF_LENGTH, SHAFT_X0, z0, z1);
   addSlab(SHAFT_X1, BOX_HALF_LENGTH, z0, z1);
   addSlab(SHAFT_X0, SHAFT_X1, STAIR_TOP_Z, z1);
+  addSlab(SHAFT_X0, SHAFT_X1, z0, STAIR_BOTTOM_Z);
 
   // Narrow ribs bridge the well between the stair and escalator slots.
-  addSlab(SHAFT_X0, PAVILION_X + STAIR_X_OFFSET - STAIR_HALF_WIDTH, z0, STAIR_TOP_Z);
+  addSlab(SHAFT_X0, PAVILION_X + STAIR_X_OFFSET - STAIR_HALF_WIDTH, STAIR_BOTTOM_Z, STAIR_TOP_Z);
   addSlab(
     PAVILION_X + STAIR_X_OFFSET + STAIR_HALF_WIDTH,
     PAVILION_X + ESCALATOR_X_OFFSET - ESCALATOR_HALF_WIDTH,
-    z0,
+    STAIR_BOTTOM_Z,
     STAIR_TOP_Z,
   );
   addSlab(
     PAVILION_X + ESCALATOR_X_OFFSET + ESCALATOR_HALF_WIDTH,
     SHAFT_X1,
-    z0,
+    STAIR_BOTTOM_Z,
     STAIR_TOP_Z,
   );
 

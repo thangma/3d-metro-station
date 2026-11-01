@@ -22,10 +22,10 @@ export interface PavilionResult {
 
 export const PAVILION_HALF_WIDTH = 5;
 export const STAIR_WIDTH = 3;
-export const STAIR_RUN = 26;
+export const STAIR_RUN = 20;
 export const STAIR_RISE = 10.6;
 export const STAIR_TOP_Z = 11.5;
-export const STAIR_BOTTOM_Z = -14.5;
+export const STAIR_BOTTOM_Z = -8.5;
 export const STAIR_X_OFFSET = -3.2;
 export const STAIR_HALF_WIDTH = STAIR_WIDTH / 2;
 export const ESCALATOR_X_OFFSET = 0;
@@ -268,8 +268,8 @@ export function buildPavilion(
             maxX: escalatorX + ESCALATOR_HALF_WIDTH,
             minZ: Math.min(stairTopZ, stairBottomZ),
             maxZ: Math.max(stairTopZ, stairBottomZ),
-            bottomY: 0.6,
-            topY: -10,
+            bottomY: -10,
+            topY: 0.6,
           },
         },
       ]

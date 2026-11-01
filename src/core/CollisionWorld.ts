@@ -34,14 +34,22 @@ export class CollisionWorld {
   private readonly ramps: RampSpec[] = [];
   private readonly scratch = new Vector3();
 
-  addBox(box: BoxSpec): void;
-  addBox(min: Vector3, max: Vector3): void;
-  addBox(a: BoxSpec | Vector3, b?: Vector3): void {
+  addBox(box: BoxSpec): BoxSpec;
+  addBox(min: Vector3, max: Vector3): BoxSpec;
+  addBox(a: BoxSpec | Vector3, b?: Vector3): BoxSpec {
     const box: BoxSpec = a instanceof Vector3 ? { min: a.clone(), max: b!.clone() } : a;
-    this.boxes.push({
+    const stored: BoxSpec = {
       min: box.min.clone().min(box.max),
       max: box.min.clone().max(box.max),
-    });
+    };
+    this.boxes.push(stored);
+    return stored;
+  }
+
+  /** Remove a collider previously returned by `addBox`. */
+  removeBox(box: BoxSpec): void {
+    const index = this.boxes.indexOf(box);
+    if (index >= 0) this.boxes.splice(index, 1);
   }
 
   /**

@@ -22,15 +22,16 @@ import { createRng } from '../test/rng';
 import { PAVILION_X, PAVILION_Y, type EscalatorSpec } from '../world/layout';
 import { buildSite } from '../world/site';
 import { buildPavilion } from '../world/pavilion';
+import { buildConcourse, type ConcourseResult } from '../world/concourse';
 import { createMaterials, type MaterialLibrary } from '../world/kit/materials';
 
-const STATE_POSITIONS: Record<string, [number, number, number]> = {
-  street: [PAVILION_X, 0, 17.5],
-  pavilion: [PAVILION_X, PAVILION_Y, 12.6],
-  concourse: [-40, -10, 0],
-  platform: [0, -16.75, 0],
-  boarding: [0, -16.75, 2],
-  complete: [0, -16.75, 6],
+const STATE_POSITIONS: Record<string, [number, number, number, number?]> = {
+  street: [PAVILION_X, 0, 17.5, 0],
+  pavilion: [PAVILION_X, PAVILION_Y, 12.6, 0],
+  concourse: [-20, -10, -1.1, -Math.PI / 2],
+  platform: [0, -16.75, 0, 0],
+  boarding: [0, -16.75, 2, 0],
+  complete: [0, -16.75, 6, 0],
 };
 
 /**
@@ -44,7 +45,10 @@ export class Game {
   private readonly cameraRig: CameraRig;
   private readonly world = new CollisionWorld();
   private readonly materials: MaterialLibrary;
-  private readonly player = new PlayerController(new Vector3(...STATE_POSITIONS.street));
+  private concourse!: ConcourseResult;
+  private readonly player = new PlayerController(
+    new Vector3(STATE_POSITIONS.street[0], STATE_POSITIONS.street[1], STATE_POSITIONS.street[2]),
+  );
   private readonly input: InputController;
   private readonly loop: Loop;
   private readonly diagnostics = createDiagnostics();
@@ -112,6 +116,10 @@ export class Game {
     const position = STATE_POSITIONS[name];
     if (!position) throw new Error(`Unknown state: ${name}`);
     this.player.teleport(position[0], position[1], position[2]);
+    if (position[3] !== undefined) {
+      this.player.yaw = position[3];
+      this.player.pitch = 0;
+    }
     this.cameraRig.apply(this.player);
     this.stage = name;
     return { state: name };
@@ -136,6 +144,14 @@ export class Game {
     this.escalators.push(...south.escalators);
     buildPavilion(this.scene, this.world, this.materials, PAVILION_X, -1);
 
+    this.concourse = buildConcourse(
+      this.scene,
+      this.world,
+      this.materials,
+      this.interaction,
+    );
+    this.escalators.push(...this.concourse.escalators);
+
     this.scene.add(new HemisphereLight(0xdfeaf5, 0x4a4640, 1.5));
     const sun = new DirectionalLight(0xfff2dd, 2.6);
     sun.position.set(40, 60, 20);
@@ -152,6 +168,7 @@ export class Game {
     const carry = resolveCarry(this.player.position, this.escalators);
     this.player.update(dt, input, this.world, carry);
     this.cameraRig.apply(this.player);
+    this.concourse.update(dt);
 
     const target = this.interaction.update(this.camera, this.player.position);
     this.hud.setPrompt(target ? target.promptVi : null, target?.promptEn);

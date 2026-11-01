@@ -20,7 +20,8 @@ describe('entrance pavilion', () => {
     let feet = PAVILION_Y;
     let previous = feet;
     let samples = 0;
-    for (let z = 12.5; z >= -13.5; z -= 0.1) {
+    const bottom = result.stairBottom.z + 0.4;
+    for (let z = 12.5; z >= bottom; z -= 0.1) {
       const height = world.groundHeightAt(result.stairTop.x, z, feet);
       expect(height, `no floor at z=${z.toFixed(2)}`).not.toBeNull();
       expect(height!).toBeLessThanOrEqual(previous + 0.02);
