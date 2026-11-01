@@ -1,0 +1,28 @@
+{
+  "name": "threejs-metro-station",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1 --port 5188",
+    "build": "tsc && vite build",
+    "preview": "vite preview --host 127.0.0.1 --port 5188",
+    "test": "playwright test",
+    "test:unit": "vitest run",
+    "inspect:canvas": "node scripts/inspect-threejs-canvas.mjs"
+  },
+  "dependencies": {
+    "lil-gui": "^0.21.0",
+    "three": "^0.187.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.64.1",
+    "@types/node": "^26.6.6",
+    "@types/pngjs": "^6.0.5",
+    "@types/three": "^0.187.0",
+    "pngjs": "^7.0.0",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.5",
+    "vitest": "^5.0.5"
+  }
+}
