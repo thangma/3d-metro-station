@@ -19,6 +19,8 @@ import { Loop } from './Loop';
 import { PlayerController } from './PlayerController';
 import { Renderer } from './Renderer';
 import { resolveCarry } from './escalators';
+import { InteractionSystem } from '../systems/InteractionSystem';
+import { Hud } from '../ui/Hud';
 import { createDiagnostics, type Diagnostics } from '../test/diagnostics';
 import { installHooks } from '../test/hooks';
 import { createRng } from '../test/rng';
@@ -48,6 +50,8 @@ export class Game {
   private readonly loop: Loop;
   private readonly diagnostics = createDiagnostics();
   private readonly escalators: EscalatorSpec[] = [];
+  readonly interaction = new InteractionSystem();
+  readonly hud: Hud;
 
   private rng = createRng(42);
   private stage = 'street';
@@ -55,7 +59,8 @@ export class Game {
   private debugUiHidden = false;
   private elapsed = 0;
 
-  constructor(canvas: HTMLCanvasElement) {
+  constructor(canvas: HTMLCanvasElement, hud: Hud) {
+    this.hud = hud;
     this.renderer = new Renderer(canvas);
     this.camera = new PerspectiveCamera(
       90,
@@ -168,6 +173,13 @@ export class Game {
     const carry = resolveCarry(this.player.position, this.escalators);
     this.player.update(dt, input, this.world, carry);
     this.cameraRig.apply(this.player);
+
+    const target = this.interaction.update(this.camera, this.player.position);
+    this.hud.setPrompt(target ? target.promptVi : null, target?.promptEn);
+
+    if (this.input.consumeInteract()) {
+      this.interaction.interact();
+    }
   };
 
   private readonly render = (): void => {

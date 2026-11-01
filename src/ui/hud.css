@@ -1,0 +1,126 @@
+.reticle {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 4px;
+  height: 4px;
+  margin: -2px 0 0 -2px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.7);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.45);
+}
+
+.prompt {
+  position: absolute;
+  left: 50%;
+  bottom: max(80px, 12vh);
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: min(92vw, 620px);
+  padding: 10px 14px;
+  background: var(--panel);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 10px;
+  backdrop-filter: blur(8px);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+}
+
+.prompt[hidden] {
+  display: none;
+}
+
+.prompt__key {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.prompt__text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.prompt__vi {
+  font-size: clamp(0.82rem, 2.4vw, 1rem);
+  font-weight: 600;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+.prompt__en {
+  font-size: clamp(0.7rem, 2vw, 0.82rem);
+  color: var(--muted);
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+.prompt__en[hidden] {
+  display: none;
+}
+
+.caption {
+  position: absolute;
+  left: 50%;
+  bottom: max(24px, 4vh);
+  transform: translateX(-50%);
+  max-width: min(90vw, 720px);
+  padding: 8px 14px;
+  border-radius: 8px;
+  background: rgba(4, 8, 7, 0.78);
+  border-left: 3px solid var(--accent);
+  font-size: clamp(0.75rem, 2.2vw, 0.92rem);
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
+.caption[hidden] {
+  display: none;
+}
+
+.endcard {
+  display: grid;
+  justify-items: center;
+  gap: 12px;
+  max-width: min(90vw, 560px);
+  padding: 28px 32px;
+  border-radius: 14px;
+  background: var(--panel);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  text-align: center;
+}
+
+.endcard h1 {
+  margin: 0;
+  font-size: clamp(1.3rem, 4.5vw, 2rem);
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+.endcard p {
+  margin: 0;
+  color: var(--muted);
+  font-size: clamp(0.8rem, 2.6vw, 0.95rem);
+}
+
+.endcard button {
+  margin-top: 6px;
+  padding: 10px 18px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: var(--accent);
+  color: #04120c;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
