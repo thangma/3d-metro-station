@@ -175,17 +175,24 @@ function buildSidewalk(
     new Vector3(SITE_HALF_LENGTH, -0.15, Math.max(roadZ, roadOuter)),
   );
 
-  // Lane markings.
+  // Lane markings (instanced).
   const markingGeometry = new BoxGeometry(3, 0.02, 0.16);
   const markingMaterial = new MeshStandardMaterial({ color: 0xd8d3c0, roughness: 0.9 });
   const laneZ = [kerbZ + s * 10, kerbZ + s * 20];
+  const xValues: number[] = [];
+  for (let x = -SITE_HALF_LENGTH + 4; x < SITE_HALF_LENGTH; x += 8) {
+    xValues.push(x);
+  }
+  const markings = new InstancedMesh(markingGeometry, markingMaterial, laneZ.length * xValues.length);
+  const markMat = new Matrix4();
+  let markIdx = 0;
   for (const z of laneZ) {
-    for (let x = -SITE_HALF_LENGTH + 4; x < SITE_HALF_LENGTH; x += 8) {
-      const marking = new Mesh(markingGeometry, markingMaterial);
-      marking.position.set(x, -0.139, z);
-      group.add(marking);
+    for (const x of xValues) {
+      markMat.makeTranslation(x, -0.139, z);
+      markings.setMatrixAt(markIdx++, markMat);
     }
   }
+  group.add(markings);
 }
 
 function buildTrees(group: Group, world: CollisionWorld, materials: MaterialLibrary): void {
@@ -199,9 +206,11 @@ function buildTrees(group: Group, world: CollisionWorld, materials: MaterialLibr
   const trunkMaterial = new MeshStandardMaterial({ color: 0x4a3a2c, roughness: 0.95 });
   const canopyGeometry = new SphereGeometry(1.7, 9, 7);
   const canopyMaterial = new MeshStandardMaterial({ color: 0x27503a, roughness: 0.85 });
+  const pitGeom = new BoxGeometry(1.6, 0.04, 1.6);
 
   const trunks = new InstancedMesh(trunkGeometry, trunkMaterial, positions.length);
   const canopies = new InstancedMesh(canopyGeometry, canopyMaterial, positions.length);
+  const pits = new InstancedMesh(pitGeom, materials.concrete, positions.length);
   const matrix = new Matrix4();
 
   positions.forEach(([x, z], index) => {
@@ -209,11 +218,9 @@ function buildTrees(group: Group, world: CollisionWorld, materials: MaterialLibr
     trunks.setMatrixAt(index, matrix);
     matrix.makeTranslation(x, 3.6, z);
     canopies.setMatrixAt(index, matrix);
+    matrix.makeTranslation(x, 0.02, z);
+    pits.setMatrixAt(index, matrix);
 
-    // Tree pit and collider.
-    const pit = new Mesh(new BoxGeometry(1.6, 0.04, 1.6), materials.concrete);
-    pit.position.set(x, 0.02, z);
-    group.add(pit);
     world.addBox(
       new Vector3(x - 0.25, 0, z - 0.25),
       new Vector3(x + 0.25, 2.8, z + 0.25),
@@ -222,7 +229,7 @@ function buildTrees(group: Group, world: CollisionWorld, materials: MaterialLibr
 
   trunks.castShadow = true;
   canopies.castShadow = true;
-  group.add(trunks, canopies);
+  group.add(trunks, canopies, pits);
 }
 
 function buildBollards(group: Group, world: CollisionWorld, materials: MaterialLibrary): void {
@@ -249,26 +256,35 @@ function buildBollards(group: Group, world: CollisionWorld, materials: MaterialL
 }
 
 function buildVents(group: Group, world: CollisionWorld, materials: MaterialLibrary): void {
+  const ventPositions: Array<[number, number]> = [];
   for (const side of [1, -1]) {
     for (const x of [-70, 0, 70]) {
-      const vent = new Mesh(new BoxGeometry(6, 0.9, 1.6), materials.concrete);
-      vent.position.set(x, 0.45, side * (BOX_HALF_WIDTH + 2.2));
-      vent.castShadow = true;
-      group.add(vent);
-
-      const grille = new Mesh(
-        new BoxGeometry(5.2, 0.06, 1.2),
-        new MeshStandardMaterial({ color: 0x171b1d, roughness: 0.8 }),
-      );
-      grille.position.set(x, 0.92, side * (BOX_HALF_WIDTH + 2.2));
-      group.add(grille);
-
-      world.addBox(
-        new Vector3(x - 3, 0, side * (BOX_HALF_WIDTH + 2.2) - 0.8),
-        new Vector3(x + 3, 0.9, side * (BOX_HALF_WIDTH + 2.2) + 0.8),
-      );
+      ventPositions.push([x, side * (BOX_HALF_WIDTH + 2.2)]);
     }
   }
+
+  const ventGeom = new BoxGeometry(6, 0.9, 1.6);
+  const grilleGeom = new BoxGeometry(5.2, 0.06, 1.2);
+  const grilleMat = new MeshStandardMaterial({ color: 0x171b1d, roughness: 0.8 });
+
+  const vents = new InstancedMesh(ventGeom, materials.concrete, ventPositions.length);
+  const grilles = new InstancedMesh(grilleGeom, grilleMat, ventPositions.length);
+  const vMat = new Matrix4();
+
+  ventPositions.forEach(([x, z], idx) => {
+    vMat.makeTranslation(x, 0.45, z);
+    vents.setMatrixAt(idx, vMat);
+
+    vMat.makeTranslation(x, 0.92, z);
+    grilles.setMatrixAt(idx, vMat);
+
+    world.addBox(
+      new Vector3(x - 3, 0, z - 0.8),
+      new Vector3(x + 3, 0.9, z + 0.8),
+    );
+  });
+
+  group.add(vents, grilles);
 }
 
 function buildLamps(group: Group, materials: MaterialLibrary): void {
@@ -279,23 +295,30 @@ function buildLamps(group: Group, materials: MaterialLibrary): void {
     emissiveIntensity: 1.4,
   });
 
+  const positions: Array<[number, number]> = [];
   for (const side of [1, -1]) {
     for (let x = -75; x <= 75; x += 30) {
-      const z = side * (BOX_HALF_WIDTH + 6.5);
-      const pole = new Mesh(new CylinderGeometry(0.07, 0.09, 6.4, 8), poleMaterial);
-      pole.position.set(x, 3.2, z);
-      group.add(pole);
-
-      const arm = new Mesh(new BoxGeometry(1.4, 0.1, 0.1), poleMaterial);
-      arm.position.set(x, 6.3, z - side * 0.7);
-      arm.rotation.x = side * 0.5;
-      group.add(arm);
-
-      const head = new Mesh(new BoxGeometry(0.7, 0.12, 0.3), headMaterial);
-      head.position.set(x, 6.0, z - side * 1.3);
-      group.add(head);
+      positions.push([x, side]);
     }
   }
+
+  const poleGeom = new CylinderGeometry(0.07, 0.09, 6.4, 8);
+  const headGeom = new BoxGeometry(0.7, 0.12, 0.3);
+
+  const poles = new InstancedMesh(poleGeom, poleMaterial, positions.length);
+  const heads = new InstancedMesh(headGeom, headMaterial, positions.length);
+
+  const mat = new Matrix4();
+  positions.forEach(([x, side], idx) => {
+    const z = side * (BOX_HALF_WIDTH + 6.5);
+    mat.makeTranslation(x, 3.2, z);
+    poles.setMatrixAt(idx, mat);
+
+    mat.makeTranslation(x, 6.0, z - side * 1.3);
+    heads.setMatrixAt(idx, mat);
+  });
+
+  group.add(poles, heads);
 }
 
 /** Low-detail city blocks behind the road, only for depth cues. */

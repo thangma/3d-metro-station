@@ -1,0 +1,18 @@
+{
+  "runId": "pass-1",
+  "mode": "desktop",
+  "state": "platform",
+  "requestedState": "platform",
+  "appliedState": "platform",
+  "screenshotPath": "artifacts/pass-1/desktop-platform.png",
+  "consoleErrors": [],
+  "pageErrors": [],
+  "result": {
+    "ok": true,
+    "metrics": {
+      "colorEntropyBits": 7.2,
+      "calls": 144,
+      "triangles": 15308
+    }
+  }
+}

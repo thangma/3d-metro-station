@@ -1,0 +1,18 @@
+{
+  "runId": "pass-1",
+  "mode": "mobile",
+  "state": "platform",
+  "requestedState": "platform",
+  "appliedState": "platform",
+  "screenshotPath": "artifacts/pass-1/mobile-platform.png",
+  "consoleErrors": [],
+  "pageErrors": [],
+  "result": {
+    "ok": true,
+    "metrics": {
+      "colorEntropyBits": 7.2,
+      "calls": 65,
+      "triangles": 12924
+    }
+  }
+}

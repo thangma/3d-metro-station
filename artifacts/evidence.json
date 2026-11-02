@@ -1,0 +1,44 @@
+{
+  "version": 1,
+  "runId": "pass-1",
+  "captures": [
+    {
+      "mode": "desktop",
+      "state": "street",
+      "report": "artifacts/pass-1/desktop-street.json"
+    },
+    {
+      "mode": "desktop",
+      "state": "concourse",
+      "report": "artifacts/pass-1/desktop-concourse.json"
+    },
+    {
+      "mode": "desktop",
+      "state": "platform",
+      "report": "artifacts/pass-1/desktop-platform.json"
+    },
+    {
+      "mode": "desktop",
+      "state": "boarding",
+      "report": "artifacts/pass-1/desktop-boarding.json"
+    },
+    {
+      "mode": "desktop",
+      "state": "complete",
+      "report": "artifacts/pass-1/desktop-complete.json"
+    },
+    {
+      "mode": "mobile",
+      "state": "platform",
+      "report": "artifacts/pass-1/mobile-platform.json"
+    }
+  ],
+  "artifacts": [
+    "artifacts/pass-1/desktop-street.png",
+    "artifacts/pass-1/desktop-concourse.png",
+    "artifacts/pass-1/desktop-platform.png",
+    "artifacts/pass-1/desktop-boarding.png",
+    "artifacts/pass-1/desktop-complete.png",
+    "artifacts/pass-1/mobile-platform.png"
+  ]
+}

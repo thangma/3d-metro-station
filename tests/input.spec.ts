@@ -17,7 +17,9 @@ async function position(page: import('@playwright/test').Page): Promise<{ x: num
 test('WASD walks the player forward', async ({ page }) => {
   await page.setViewportSize({ width: 960, height: 540 });
   await page.goto('/');
-  await page.locator('canvas').click();
+  const startBtn = page.locator('[data-testid="start-button"]');
+  if (await startBtn.isVisible()) await startBtn.click();
+  else await page.locator('canvas').click({ force: true });
   const before = await position(page);
 
   await page.keyboard.down('KeyW');
@@ -32,7 +34,9 @@ test('WASD walks the player forward', async ({ page }) => {
 test('Escape pauses simulation without accumulating movement', async ({ page }) => {
   await page.setViewportSize({ width: 960, height: 540 });
   await page.goto('/');
-  await page.locator('canvas').click();
+  const startBtn = page.locator('[data-testid="start-button"]');
+  if (await startBtn.isVisible()) await startBtn.click();
+  else await page.locator('canvas').click({ force: true });
   await page.keyboard.down('KeyW');
   await page.waitForTimeout(400);
   await page.keyboard.up('KeyW');
