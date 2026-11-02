@@ -24,7 +24,6 @@ import {
 } from './layout';
 import type { MaterialLibrary } from './kit/materials';
 import { buildBench } from './kit/bench';
-import { buildColumn } from './kit/column';
 import { buildEscalator } from './kit/escalator';
 import { buildGate, gateFlapBox, GATE_AISLE, GATE_PEDESTAL_DEPTH } from './kit/gate';
 import { buildRailing } from './kit/railing';
@@ -114,8 +113,8 @@ export function buildConcourse(
   // One prompt per gate so the player can scan at whichever aisle they reach.
   for (const z of GATE_Z) {
     interaction.register({
-      position: new Vector3(GATE_LINE_X, CONCOURSE_Y + 1.0, z),
-      radius: 0.9,
+      position: new Vector3(GATE_LINE_X + 0.35, CONCOURSE_Y + 1.25, z),
+      radius: 1.2,
       promptVi: 'Soát vé',
       promptEn: 'Scan ticket',
       action: () => setGateOpen(true),
@@ -227,19 +226,26 @@ function buildWallsAndCeiling(
   }
   group.add(strips);
 
-  // Pilasters along both walls.
+  // Pilasters along both walls (instanced to keep draw calls low).
+  const pilasterX: number[] = [];
+  for (let x = -80; x <= 80; x += 16) pilasterX.push(x);
+  const totalPilasters = pilasterX.length * 2;
+  const pilasterGeom = new BoxGeometry(0.8, height, 0.8);
+  const pilasterMesh = new InstancedMesh(pilasterGeom, materials.paintedSteel, totalPilasters);
+  const pilMatrix = new Matrix4();
+  let pilIdx = 0;
+
   for (const side of [-1, 1]) {
-    for (let x = -80; x <= 80; x += 16) {
-      const column = buildColumn(materials);
-      column.group.position.set(x, CONCOURSE_Y, side * (BOX_HALF_WIDTH - 0.9));
-      column.group.scale.y = height / 6.75;
-      group.add(column.group);
+    for (const x of pilasterX) {
+      pilMatrix.makeTranslation(x, CONCOURSE_Y + height / 2, side * (BOX_HALF_WIDTH - 0.9));
+      pilasterMesh.setMatrixAt(pilIdx++, pilMatrix);
       world.addBox(
         new Vector3(x - 0.5, CONCOURSE_Y, side * (BOX_HALF_WIDTH - 0.9) - 0.5),
         new Vector3(x + 0.5, CONCOURSE_CEILING, side * (BOX_HALF_WIDTH - 0.9) + 0.5),
       );
     }
   }
+  group.add(pilasterMesh);
 }
 
 function buildBalustrades(

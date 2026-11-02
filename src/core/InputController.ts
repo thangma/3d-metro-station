@@ -11,10 +11,17 @@ export class InputController {
   private mouseX = 0;
   private mouseY = 0;
   private interactQueued = false;
+  private justAcquiredLock = false;
+  private readonly onUserInteraction?: () => void;
 
-  constructor(canvas: HTMLCanvasElement, onPauseChange: (paused: boolean) => void) {
+  constructor(
+    canvas: HTMLCanvasElement,
+    onPauseChange: (paused: boolean) => void,
+    onUserInteraction?: () => void,
+  ) {
     this.canvas = canvas;
     this.onPauseChange = onPauseChange;
+    this.onUserInteraction = onUserInteraction;
     this.bind();
   }
 
@@ -91,6 +98,10 @@ export class InputController {
 
   private readonly handleClick = (): void => {
     this.setPaused(false);
+    this.onUserInteraction?.();
+    this.justAcquiredLock = true;
+    this.mouseX = 0;
+    this.mouseY = 0;
     if (document.pointerLockElement !== this.canvas) {
       try {
         void this.canvas.requestPointerLock();
@@ -101,7 +112,11 @@ export class InputController {
   };
 
   private readonly handlePointerLockChange = (): void => {
-    if (document.pointerLockElement !== this.canvas && !this.paused) {
+    if (document.pointerLockElement === this.canvas) {
+      this.justAcquiredLock = true;
+      this.mouseX = 0;
+      this.mouseY = 0;
+    } else if (!this.paused) {
       this.setPaused(true);
     }
   };
@@ -128,6 +143,10 @@ export class InputController {
 
   private readonly handleMouseMove = (event: MouseEvent): void => {
     if (this.paused || document.pointerLockElement !== this.canvas) return;
+    if (this.justAcquiredLock) {
+      this.justAcquiredLock = false;
+      return;
+    }
     this.mouseX += event.movementX;
     this.mouseY += event.movementY;
   };

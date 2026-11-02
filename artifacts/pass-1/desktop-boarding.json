@@ -1,0 +1,18 @@
+{
+  "runId": "pass-1",
+  "mode": "desktop",
+  "state": "boarding",
+  "requestedState": "boarding",
+  "appliedState": "boarding",
+  "screenshotPath": "artifacts/pass-1/desktop-boarding.png",
+  "consoleErrors": [],
+  "pageErrors": [],
+  "result": {
+    "ok": true,
+    "metrics": {
+      "colorEntropyBits": 7.2,
+      "calls": 173,
+      "triangles": 15020
+    }
+  }
+}

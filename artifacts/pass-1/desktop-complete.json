@@ -1,0 +1,18 @@
+{
+  "runId": "pass-1",
+  "mode": "desktop",
+  "state": "complete",
+  "requestedState": "complete",
+  "appliedState": "complete",
+  "screenshotPath": "artifacts/pass-1/desktop-complete.png",
+  "consoleErrors": [],
+  "pageErrors": [],
+  "result": {
+    "ok": true,
+    "metrics": {
+      "colorEntropyBits": 7.2,
+      "calls": 207,
+      "triangles": 16812
+    }
+  }
+}

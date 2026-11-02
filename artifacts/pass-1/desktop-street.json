@@ -1,0 +1,18 @@
+{
+  "runId": "pass-1",
+  "mode": "desktop",
+  "state": "street",
+  "requestedState": "street",
+  "appliedState": "street",
+  "screenshotPath": "artifacts/pass-1/desktop-street.png",
+  "consoleErrors": [],
+  "pageErrors": [],
+  "result": {
+    "ok": true,
+    "metrics": {
+      "colorEntropyBits": 7.2,
+      "calls": 288,
+      "triangles": 20548
+    }
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "runId": "pass-1",
+  "mode": "desktop",
+  "state": "concourse",
+  "requestedState": "concourse",
+  "appliedState": "concourse",
+  "screenshotPath": "artifacts/pass-1/desktop-concourse.png",
+  "consoleErrors": [],
+  "pageErrors": [],
+  "result": {
+    "ok": true,
+    "metrics": {
+      "colorEntropyBits": 7.2,
+      "calls": 401,
+      "triangles": 20488
+    }
+  }
+}

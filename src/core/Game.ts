@@ -15,7 +15,12 @@ import { PlayerController } from './PlayerController';
 import { Renderer } from './Renderer';
 import { resolveCarry } from './escalators';
 import { InteractionSystem } from '../systems/InteractionSystem';
+import { TrainSystem } from '../systems/TrainSystem';
+import { NpcSystem } from '../systems/NpcSystem';
+import { AudioSystem } from '../systems/AudioSystem';
+import { buildNavGraph } from '../world/nav';
 import { Hud } from '../ui/Hud';
+import { Title } from '../ui/Title';
 import { createDiagnostics, type Diagnostics } from '../test/diagnostics';
 import { installHooks } from '../test/hooks';
 import { createRng } from '../test/rng';
@@ -23,29 +28,33 @@ import { PAVILION_X, PAVILION_Y, type EscalatorSpec } from '../world/layout';
 import { buildSite } from '../world/site';
 import { buildPavilion } from '../world/pavilion';
 import { buildConcourse, type ConcourseResult } from '../world/concourse';
+import { buildPlatform, type PlatformResult } from '../world/platform';
+import { buildTrain, type TrainResult } from '../world/train';
 import { createMaterials, type MaterialLibrary } from '../world/kit/materials';
 
 const STATE_POSITIONS: Record<string, [number, number, number, number?]> = {
   street: [PAVILION_X, 0, 17.5, 0],
   pavilion: [PAVILION_X, PAVILION_Y, 12.6, 0],
   concourse: [-20, -10, -1.1, -Math.PI / 2],
-  platform: [0, -16.75, 0, 0],
+  platform: [8, -16.75, 2.5, 0],
   boarding: [0, -16.75, 2, 0],
   complete: [0, -16.75, 6, 0],
 };
 
-/**
- * Owns the scene, world systems, and frame orchestration.
- * The placeholder world is replaced by the station in later tasks.
- */
 export class Game {
-  private readonly renderer: Renderer;
+  readonly renderer: Renderer;
   private readonly scene = new Scene();
   private readonly camera: PerspectiveCamera;
   private readonly cameraRig: CameraRig;
   private readonly world = new CollisionWorld();
   private readonly materials: MaterialLibrary;
   private concourse!: ConcourseResult;
+  private platform!: PlatformResult;
+  train!: TrainResult;
+  readonly trainSystem = new TrainSystem();
+  readonly npcSystem: NpcSystem;
+  readonly audioSystem = new AudioSystem();
+  readonly title: Title;
   private readonly player = new PlayerController(
     new Vector3(STATE_POSITIONS.street[0], STATE_POSITIONS.street[1], STATE_POSITIONS.street[2]),
   );
@@ -61,9 +70,14 @@ export class Game {
   private reducedMotion = false;
   private debugUiHidden = false;
   private elapsed = 0;
+  private zone: 'street' | 'pavilion' | 'concourse' | 'platform' | 'train' = 'street';
 
   constructor(canvas: HTMLCanvasElement, hud: Hud) {
     this.hud = hud;
+    const overlay = document.querySelector<HTMLElement>('#overlay') || document.body;
+    this.title = new Title(overlay, () => {
+      void this.audioSystem.unlock();
+    });
     this.renderer = new Renderer(canvas);
     this.camera = new PerspectiveCamera(
       90,
@@ -79,8 +93,16 @@ export class Game {
     this.materials = createMaterials(this.renderer.three);
     this.buildWorld();
 
+    const nav = buildNavGraph();
+    this.npcSystem = new NpcSystem(this.scene, () => this.rng(), nav, this.trainSystem);
+    this.npcSystem.spawn(50);
+
     this.loop = new Loop(this.update, this.render);
-    this.input = new InputController(canvas, (paused) => this.loop.setPaused(paused));
+    this.input = new InputController(
+      canvas,
+      (paused) => this.loop.setPaused(paused),
+      () => void this.audioSystem.unlock(),
+    );
   }
 
   start(): void {
@@ -107,7 +129,6 @@ export class Game {
     this.rng = createRng(value);
   }
 
-  /** Seeded randomness shared by every system that needs it. */
   nextRandom(): number {
     return this.rng();
   }
@@ -122,6 +143,13 @@ export class Game {
     }
     this.cameraRig.apply(this.player);
     this.stage = name;
+    this.title.hide();
+    if (name === 'platform' || name === 'boarding') {
+      this.trainSystem.forceState(name === 'boarding' ? 'boarding' : 'stopped');
+    } else if (name === 'complete') {
+      this.trainSystem.forceState('complete');
+    }
+    this.resolveCurrentZone();
     return { state: name };
   }
 
@@ -132,6 +160,7 @@ export class Game {
 
   setReducedMotion(enabled: boolean): void {
     this.reducedMotion = enabled;
+    this.npcSystem.setReducedMotion(enabled);
   }
 
   hideDebugUi(hidden: boolean): void {
@@ -152,6 +181,18 @@ export class Game {
     );
     this.escalators.push(...this.concourse.escalators);
 
+    this.platform = buildPlatform(
+      this.scene,
+      this.world,
+      this.materials,
+      this.interaction,
+    );
+
+    this.train = buildTrain(
+      this.scene,
+      this.materials,
+    );
+
     this.scene.add(new HemisphereLight(0xdfeaf5, 0x4a4640, 1.5));
     const sun = new DirectionalLight(0xfff2dd, 2.6);
     sun.position.set(40, 60, 20);
@@ -169,6 +210,18 @@ export class Game {
     this.player.update(dt, input, this.world, carry);
     this.cameraRig.apply(this.player);
     this.concourse.update(dt);
+
+    this.resolveCurrentZone();
+
+    const playerInDoorway = this.train.playerDoorway.containsPoint(this.player.position);
+    this.trainSystem.update(dt, { playerInDoorway });
+
+    this.train.setPositionX(this.trainSystem.positionX);
+    this.train.setDoorOpen(this.trainSystem.doorOpen);
+    this.train.setHeadlights(this.trainSystem.speed > 0 ? 1 : 0.4);
+    this.platform.setPsdOpen(this.trainSystem.doorOpen);
+    this.platform.update(dt);
+    this.npcSystem.update(dt);
 
     const target = this.interaction.update(this.camera, this.player.position);
     this.hud.setPrompt(target ? target.promptVi : null, target?.promptEn);
@@ -212,5 +265,49 @@ export class Game {
 
   get isDebugUiHidden(): boolean {
     return this.debugUiHidden;
+  }
+
+  get currentZone(): 'street' | 'pavilion' | 'concourse' | 'platform' | 'train' {
+    return this.zone;
+  }
+
+  completeRun(): void {
+    void this.hud.fade(1, 1000).then(() => {
+      this.hud.showEndCard(() => {
+        this.restart();
+      });
+    });
+  }
+
+  restart(): void {
+    this.hud.hideEndCard();
+    this.trainSystem.forceState('idle');
+    this.setState('street');
+    void this.hud.fade(0, 500);
+  }
+
+  private resolveCurrentZone(): void {
+    const y = this.player.position.y;
+    let nextZone: 'street' | 'pavilion' | 'concourse' | 'platform' | 'train' = 'street';
+
+    if (y < -15.0) {
+      if (this.player.position.z > 7.5) {
+        nextZone = 'train';
+      } else {
+        nextZone = 'platform';
+      }
+    } else if (y < -4.0) {
+      nextZone = 'concourse';
+    } else if (y > 0.4 && this.player.position.z < 15.0) {
+      nextZone = 'pavilion';
+    } else {
+      nextZone = 'street';
+    }
+
+    if (nextZone !== this.zone) {
+      this.zone = nextZone;
+      const audioZone = nextZone === 'pavilion' ? 'concourse' : nextZone;
+      this.audioSystem.setZone(audioZone);
+    }
   }
 }

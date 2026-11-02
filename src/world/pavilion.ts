@@ -2,6 +2,8 @@ import {
   BoxGeometry,
   ExtrudeGeometry,
   Group,
+  InstancedMesh,
+  Matrix4,
   Mesh,
   Shape,
   Vector3,
@@ -222,18 +224,21 @@ export function buildPavilion(
     );
   }
 
-  // Mullions.
+  // Mullions (instanced).
   const mullionGeometry = new BoxGeometry(0.09, PAVILION_HEIGHT, 0.09);
   const mullionCount = 7;
+  const mullions = new InstancedMesh(mullionGeometry, materials.paintedSteel, mullionCount * 2);
+  const mulMat = new Matrix4();
+  let mulIdx = 0;
   for (let i = 0; i < mullionCount; i += 1) {
     const t = i / (mullionCount - 1);
     const mullionX = x - PAVILION_HALF_WIDTH + t * PAVILION_HALF_WIDTH * 2;
     for (const z of [facadeZ, (facadeZ + stairTopZ) / 2]) {
-      const mullion = new Mesh(mullionGeometry, materials.paintedSteel);
-      mullion.position.set(mullionX, 0.6 + PAVILION_HEIGHT / 2, z);
-      group.add(mullion);
+      mulMat.makeTranslation(mullionX, 0.6 + PAVILION_HEIGHT / 2, z);
+      mullions.setMatrixAt(mulIdx++, mulMat);
     }
   }
+  group.add(mullions);
 
   const roof = new Mesh(
     new BoxGeometry(PAVILION_HALF_WIDTH * 2 + 0.8, 0.35, Math.abs(facadeZ - stairTopZ) + 0.8),
