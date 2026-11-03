@@ -317,7 +317,7 @@ function buildFurnitureAndPortals(
   }
 
   const sign = buildSign('GA TRUNG TÂM', 'Central Station', { width: 3.5, height: 0.8 }, materials);
-  sign.group.position.set(0, PLATFORM_Y + 3.2, 0);
+  sign.group.position.set(22, PLATFORM_Y + 3.2, 0);
   group.add(sign.group);
 
   for (const side of [-1, 1]) {

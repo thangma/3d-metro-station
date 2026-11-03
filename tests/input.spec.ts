@@ -19,11 +19,12 @@ test('WASD walks the player forward', async ({ page }) => {
   await page.goto('/');
   const startBtn = page.locator('[data-testid="start-button"]');
   if (await startBtn.isVisible()) await startBtn.click();
-  else await page.locator('canvas').click({ force: true });
+  await page.locator('canvas').click({ force: true });
+  await page.waitForTimeout(300);
   const before = await position(page);
 
   await page.keyboard.down('KeyW');
-  await page.waitForTimeout(2000);
+  await page.waitForTimeout(2500);
   await page.keyboard.up('KeyW');
   await page.waitForTimeout(200);
 

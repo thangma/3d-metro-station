@@ -2,7 +2,11 @@ export class Title {
   private readonly root: HTMLElement;
   private visible = true;
 
-  constructor(container: HTMLElement, onStart: () => void) {
+  constructor(
+    container: HTMLElement,
+    onStart: () => void,
+    onAutoStart?: () => void,
+  ) {
     this.root = document.createElement('div');
     this.root.className = 'title-overlay';
     this.root.setAttribute('data-testid', 'title-overlay');
@@ -10,7 +14,10 @@ export class Title {
       <div class="title-card">
         <h1 class="title-heading">HÀ NỘI METRO</h1>
         <p class="title-sub">Ga ngầm tuyến metro đô thị · Walkthrough</p>
-        <button class="title-start-btn" data-testid="start-button">Bắt đầu / Start</button>
+        <div class="title-buttons">
+          <button class="title-start-btn" data-testid="start-button">Bắt đầu / Start</button>
+          <button class="title-auto-btn" data-testid="auto-button">Tự động / Auto Mode</button>
+        </div>
       </div>
     `;
 
@@ -18,6 +25,13 @@ export class Title {
     btn?.addEventListener('click', () => {
       this.hide();
       onStart();
+    });
+
+    const autoBtn = this.root.querySelector<HTMLButtonElement>('.title-auto-btn');
+    autoBtn?.addEventListener('click', () => {
+      this.hide();
+      onStart();
+      onAutoStart?.();
     });
 
     container.appendChild(this.root);

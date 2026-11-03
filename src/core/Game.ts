@@ -71,13 +71,24 @@ export class Game {
   private debugUiHidden = false;
   private elapsed = 0;
   private zone: 'street' | 'pavilion' | 'concourse' | 'platform' | 'train' = 'street';
+  private autoMode = false;
+  private autoWaypointIndex = 0;
+  private autoWaitTimer = 0;
+  private autoBadge?: HTMLElement;
 
   constructor(canvas: HTMLCanvasElement, hud: Hud) {
     this.hud = hud;
     const overlay = document.querySelector<HTMLElement>('#overlay') || document.body;
-    this.title = new Title(overlay, () => {
-      void this.audioSystem.unlock();
-    });
+    this.title = new Title(
+      overlay,
+      () => {
+        void this.audioSystem.unlock();
+      },
+      () => {
+        this.toggleAutoMode(true);
+      },
+    );
+    this.initAutoBadge();
     this.renderer = new Renderer(canvas);
     this.camera = new PerspectiveCamera(
       90,
@@ -144,8 +155,10 @@ export class Game {
     this.cameraRig.apply(this.player);
     this.stage = name;
     this.title.hide();
-    if (name === 'platform' || name === 'boarding') {
-      this.trainSystem.forceState(name === 'boarding' ? 'boarding' : 'stopped');
+    if (name === 'boarding') {
+      this.trainSystem.forceState('boarding');
+    } else if (name === 'platform') {
+      this.trainSystem.forceState('idle');
     } else if (name === 'complete') {
       this.trainSystem.forceState('complete');
     }
@@ -165,6 +178,39 @@ export class Game {
 
   hideDebugUi(hidden: boolean): void {
     this.debugUiHidden = hidden;
+  }
+
+  toggleAutoMode(enabled?: boolean): boolean {
+    this.autoMode = enabled !== undefined ? enabled : !this.autoMode;
+    if (this.autoMode) {
+      this.autoWaypointIndex = 0;
+      this.autoWaitTimer = 0;
+      if (this.stage === 'complete') {
+        this.restart();
+      }
+    }
+    this.updateAutoBadge();
+    return this.autoMode;
+  }
+
+  private initAutoBadge(): void {
+    const badge = document.createElement('button');
+    badge.className = 'auto-mode-badge';
+    badge.dataset.testid = 'auto-mode-toggle';
+    badge.textContent = 'Auto Mode: OFF';
+    badge.addEventListener('click', () => {
+      this.toggleAutoMode();
+    });
+    document.body.appendChild(badge);
+    this.autoBadge = badge;
+  }
+
+  private updateAutoBadge(): void {
+    if (this.autoBadge) {
+      this.autoBadge.textContent = this.autoMode ? 'Auto Mode: ON' : 'Auto Mode: OFF';
+      this.autoBadge.style.borderColor = this.autoMode ? '#4ee0a5' : '#38bdf8';
+      this.autoBadge.style.color = this.autoMode ? '#4ee0a5' : '#38bdf8';
+    }
   }
 
   private buildWorld(): void {
@@ -202,11 +248,17 @@ export class Game {
   private readonly update = (dt: number): void => {
     this.elapsed += dt;
 
-    const input = this.input.pressed();
+    let input = this.input.pressed();
     const look = this.input.takeLook(dt);
     this.player.look(look.x, look.y);
 
     const carry = resolveCarry(this.player.position, this.escalators);
+
+    if (this.autoMode) {
+      this.updateAutoTour(dt);
+      input = { forward: 0, right: 0, sprint: false, interact: false };
+    }
+
     this.player.update(dt, input, this.world, carry);
     this.cameraRig.apply(this.player);
     this.concourse.update(dt);
@@ -283,7 +335,114 @@ export class Game {
     this.hud.hideEndCard();
     this.trainSystem.forceState('idle');
     this.setState('street');
+    this.autoWaypointIndex = 0;
+    this.autoWaitTimer = 0;
     void this.hud.fade(0, 500);
+  }
+
+  private updateAutoTour(dt: number): void {
+    if (this.autoWaitTimer > 0) {
+      this.autoWaitTimer -= dt;
+      return;
+    }
+
+    const waypoints: Array<{
+      pos: [number, number, number];
+      yaw: number;
+      speed: number;
+      onReach?: () => void;
+      canProceed?: () => boolean;
+    }> = [
+      // 1. Street -> Pavilion landing
+      { pos: [-30, 0.6, 14], yaw: 0, speed: 4.8 },
+      // 2. Entrance -> Pavilion stairs top
+      { pos: [-33.2, 0.6, 11.5], yaw: 0, speed: 4.5 },
+      // 3. Pavilion stairs descent
+      { pos: [-33.2, -10, -8.5], yaw: 0, speed: 5.0 },
+      // 3b. Step clear off stair shaft into concourse
+      { pos: [-33.2, -10, -11.0], yaw: 0, speed: 5.0 },
+      // 3c. Walk into central concourse circulation aisle
+      { pos: [-20.0, -10, -11.0], yaw: -Math.PI / 2, speed: 5.0 },
+      // 4. Ticket hall approach
+      { pos: [-20, -10, -1.1], yaw: -Math.PI / 2, speed: 5.0 },
+      // 5. Gate line: auto-scan ticket
+      {
+        pos: [-12.5, -10, -1.1],
+        yaw: -Math.PI / 2,
+        speed: 4.0,
+        onReach: () => {
+          this.concourse.setGateOpen(true);
+          this.hud.showCaption('Đã soát vé thành công / Ticket scanned', 2000);
+          this.autoWaitTimer = 0.5;
+        },
+      },
+      // 6. Walk through gate towards escalator
+      { pos: [-10, -10, 1.1], yaw: -Math.PI / 2, speed: 4.8 },
+      // 7. Descend escalator down to platform
+      { pos: [3, -16.75, 1.1], yaw: -Math.PI / 2, speed: 4.5 },
+      // 8. Walk along platform towards train PSD doors
+      {
+        pos: [0, -16.75, 5.0],
+        yaw: Math.PI,
+        speed: 4.5,
+        onReach: () => {
+          this.trainSystem.requestArrival();
+        },
+      },
+      // 9. Approach PSD bay door
+      {
+        pos: [0, -16.75, 7.0],
+        yaw: Math.PI,
+        speed: 3.5,
+        canProceed: () => this.trainSystem.isBoardingOpen(),
+      },
+      // 10. Board into metro car
+      {
+        pos: [0, -16.75, 8.8],
+        yaw: Math.PI,
+        speed: 2.8,
+        onReach: () => {
+          this.completeRun();
+          this.autoMode = false;
+          this.updateAutoBadge();
+        },
+      },
+    ];
+
+    if (this.autoWaypointIndex >= waypoints.length) {
+      return;
+    }
+
+    const current = waypoints[this.autoWaypointIndex];
+    if (current.canProceed && !current.canProceed()) {
+      return;
+    }
+
+    const targetPos = new Vector3(...current.pos);
+    const diff = targetPos.clone().sub(this.player.position);
+    const distH = Math.hypot(diff.x, diff.z);
+
+    if (distH < 0.35) {
+      if (current.onReach) {
+        current.onReach();
+      }
+      this.autoWaypointIndex += 1;
+      return;
+    }
+
+    const step = Math.min(distH, current.speed * dt);
+    const dirX = (diff.x / distH) * step;
+    const dirZ = (diff.z / distH) * step;
+
+    this.player.position.x += dirX;
+    this.player.position.z += dirZ;
+    const ground = this.world.groundHeightAt(this.player.position.x, this.player.position.z, this.player.position.y);
+    if (ground !== null) {
+      this.player.position.y = ground;
+    }
+
+    this.player.yaw = current.yaw;
+    this.player.pitch = 0;
   }
 
   private resolveCurrentZone(): void {
@@ -308,6 +467,10 @@ export class Game {
       this.zone = nextZone;
       const audioZone = nextZone === 'pavilion' ? 'concourse' : nextZone;
       this.audioSystem.setZone(audioZone);
+
+      if (nextZone === 'platform' && this.trainSystem.state === 'idle') {
+        this.trainSystem.requestArrival();
+      }
     }
   }
 }

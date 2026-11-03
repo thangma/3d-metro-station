@@ -1,13 +1,16 @@
 import {
   BoxGeometry,
+  ExtrudeGeometry,
   Group,
   InstancedMesh,
   Matrix4,
   Mesh,
   MeshStandardMaterial,
+  Shape,
   Vector3,
   type Scene,
 } from 'three';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import type { BoxSpec, CollisionWorld } from '../core/CollisionWorld';
 import {
   BOX_HALF_LENGTH,
@@ -33,8 +36,10 @@ import type { InteractionSystem } from '../systems/InteractionSystem';
 export const GATE_LINE_X = -12;
 export const GATE_Z = [-5.5, -3.3, -1.1, 1.1, 3.3, 5.5];
 
-const ESCALATOR_WIDTH = 2;
-const ESCALATOR_MOUTH = ESCALATOR_WIDTH / 2 + 0.15;
+const FLIGHT_WIDTH = 1.8;
+const STAIR_Z_CENTER = -1.1;
+const ESCALATOR_Z_CENTER = 1.1;
+const OPENING_HALF_WIDTH = 2.25;
 const FLOOR_THICKNESS = 0.4;
 const ESCALATOR_WEST_X1 = VOID_X0 + ESCALATOR_RUN_PLATFORM;
 const ESCALATOR_EAST_X0 = VOID_X1 - ESCALATOR_RUN_PLATFORM;
@@ -260,8 +265,8 @@ function buildBalustrades(
     addRail(group, world, materials, centreX, side * VOID_HALF_WIDTH, halfLength * 2, true);
   }
 
-  const edgeLength = VOID_HALF_WIDTH - ESCALATOR_MOUTH;
-  const edgeCentre = ESCALATOR_MOUTH + edgeLength / 2;
+  const edgeLength = VOID_HALF_WIDTH - OPENING_HALF_WIDTH;
+  const edgeCentre = OPENING_HALF_WIDTH + edgeLength / 2;
   for (const x of [VOID_X0, VOID_X1]) {
     for (const side of [-1, 1]) {
       addRail(group, world, materials, x, side * edgeCentre, edgeLength, false);
@@ -347,6 +352,53 @@ function buildGateScreens(
   }
 }
 
+function buildConcourseStairFlight(
+  run: number,
+  rise: number,
+  width: number,
+  materials: MaterialLibrary,
+): Group {
+  const group = new Group();
+  group.name = 'concourse-stair-flight';
+
+  const stepCount = Math.round(run / 0.3);
+  const stepLength = run / stepCount;
+  const stepRise = rise / stepCount;
+
+  const treads: BoxGeometry[] = [];
+  for (let i = 0; i < stepCount; i += 1) {
+    const tread = new BoxGeometry(stepLength, 0.1, width);
+    tread.translate(i * stepLength + stepLength / 2, (i + 0.5) * stepRise, 0);
+    treads.push(tread);
+  }
+  const merged = mergeGeometries(treads, false);
+  if (merged) {
+    const mesh = new Mesh(merged, materials.terrazzo);
+    mesh.receiveShadow = true;
+    group.add(mesh);
+  }
+
+  const shape = new Shape();
+  shape.moveTo(0, 0);
+  shape.lineTo(run, rise);
+  shape.lineTo(run, rise - 0.45);
+  shape.lineTo(0, -0.45);
+  shape.closePath();
+  const stringerGeometry = new ExtrudeGeometry(shape, {
+    depth: 0.12,
+    bevelEnabled: false,
+    curveSegments: 1,
+  });
+  stringerGeometry.translate(0, 0, -0.06);
+  for (const edge of [-1, 1]) {
+    const stringer = new Mesh(stringerGeometry, materials.paintedSteel);
+    stringer.position.z = (edge * width) / 2;
+    group.add(stringer);
+  }
+
+  return group;
+}
+
 function buildEscalators(
   group: Group,
   world: CollisionWorld,
@@ -354,50 +406,104 @@ function buildEscalators(
 ): EscalatorSpec[] {
   const specs: EscalatorSpec[] = [];
 
-  const add = (
+  const addBank = (
     topX: number,
     bottomX: number,
     rotation: number,
   ): void => {
-    const kit = buildEscalator(
-      { run: Math.abs(bottomX - topX), rise: CONCOURSE_Y - PLATFORM_Y, width: ESCALATOR_WIDTH },
-      materials,
-    );
-    kit.group.position.set(bottomX, PLATFORM_Y, 0);
-    kit.group.rotation.y = rotation;
-    group.add(kit.group);
-
+    const run = Math.abs(bottomX - topX);
+    const rise = CONCOURSE_Y - PLATFORM_Y;
     const minX = Math.min(topX, bottomX);
     const maxX = Math.max(topX, bottomX);
-    world.addRamp(minX, maxX, -1, 1, PLATFORM_Y, CONCOURSE_Y, 'x');
 
-    // Balustrade walls either side of the escalator well.
-    for (const side of [-1, 1]) {
-      world.addBox(
-        new Vector3(minX, PLATFORM_Y - 0.4, side * (ESCALATOR_WIDTH / 2 + 0.05) - 0.06),
-        new Vector3(maxX, CONCOURSE_Y, side * (ESCALATOR_WIDTH / 2 + 0.05) + 0.06),
-      );
-    }
+    // 1. Pedestrian Staircase
+    const stairFlight = buildConcourseStairFlight(run, rise, FLIGHT_WIDTH, materials);
+    stairFlight.position.set(bottomX, PLATFORM_Y, STAIR_Z_CENTER);
+    stairFlight.rotation.y = rotation;
+    group.add(stairFlight);
 
+    const yAtMinX = topX < bottomX ? CONCOURSE_Y : PLATFORM_Y;
+    const yAtMaxX = topX < bottomX ? PLATFORM_Y : CONCOURSE_Y;
+
+    // Walkable ramp for pedestrian stairs
+    world.addRamp(
+      minX,
+      maxX,
+      STAIR_Z_CENTER - FLIGHT_WIDTH / 2,
+      STAIR_Z_CENTER + FLIGHT_WIDTH / 2,
+      yAtMinX,
+      yAtMaxX,
+      'x',
+    );
+
+    // 2. Automatic Motorized Escalator
+    const escalatorKit = buildEscalator(
+      { run, rise, width: FLIGHT_WIDTH },
+      materials,
+    );
+    escalatorKit.group.position.set(bottomX, PLATFORM_Y, ESCALATOR_Z_CENTER);
+    escalatorKit.group.rotation.y = rotation;
+    group.add(escalatorKit.group);
+
+    // Walkable ramp for escalator
+    world.addRamp(
+      minX,
+      maxX,
+      ESCALATOR_Z_CENTER - FLIGHT_WIDTH / 2,
+      ESCALATOR_Z_CENTER + FLIGHT_WIDTH / 2,
+      yAtMinX,
+      yAtMaxX,
+      'x',
+    );
+
+    // Escalator carry spec
     specs.push({
-      position: new Vector3(topX, CONCOURSE_Y, 0),
+      position: new Vector3(topX, CONCOURSE_Y, ESCALATOR_Z_CENTER),
       direction: new Vector3(bottomX - topX, PLATFORM_Y - CONCOURSE_Y, 0).normalize(),
       speed: 0.65,
       footprint: {
         minX,
         maxX,
-        minZ: -1,
-        maxZ: 1,
+        minZ: ESCALATOR_Z_CENTER - FLIGHT_WIDTH / 2,
+        maxZ: ESCALATOR_Z_CENTER + FLIGHT_WIDTH / 2,
         bottomY: PLATFORM_Y,
         topY: CONCOURSE_Y,
       },
     });
+
+    // Balustrade walls: outer edge of stairs, central dividing rail, outer edge of escalator
+    // Outer stair wall
+    const outerStairZ = STAIR_Z_CENTER - FLIGHT_WIDTH / 2;
+    world.addBox(
+      new Vector3(minX, PLATFORM_Y - 0.4, outerStairZ - 0.1),
+      new Vector3(maxX, CONCOURSE_Y + 1.1, outerStairZ + 0.05),
+    );
+
+    // Dividing center balustrade between stair and escalator
+    world.addBox(
+      new Vector3(minX, PLATFORM_Y - 0.4, -0.1),
+      new Vector3(maxX, CONCOURSE_Y + 1.1, 0.1),
+    );
+    const centerDivider = new Mesh(
+      new BoxGeometry(maxX - minX, 1.1, 0.12),
+      materials.glass,
+    );
+    centerDivider.position.set((minX + maxX) / 2, (CONCOURSE_Y + PLATFORM_Y) / 2 + 0.55, 0);
+    // Orient divider parallel to slope
+    group.add(centerDivider);
+
+    // Outer escalator wall
+    const outerEscalatorZ = ESCALATOR_Z_CENTER + FLIGHT_WIDTH / 2;
+    world.addBox(
+      new Vector3(minX, PLATFORM_Y - 0.4, outerEscalatorZ - 0.05),
+      new Vector3(maxX, CONCOURSE_Y + 1.1, outerEscalatorZ + 0.1),
+    );
   };
 
   // West bank: top at the gate line edge, descending east into the void.
-  add(VOID_X0, ESCALATOR_WEST_X1, Math.PI);
+  addBank(VOID_X0, ESCALATOR_WEST_X1, Math.PI);
   // East bank: top at the far void edge, descending west.
-  add(VOID_X1, ESCALATOR_EAST_X0, 0);
+  addBank(VOID_X1, ESCALATOR_EAST_X0, 0);
 
   return specs;
 }
